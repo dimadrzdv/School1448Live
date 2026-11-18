@@ -1,0 +1,7 @@
+# Production: public domain with an automatic Let's Encrypt certificate.
+# Needs ports 80 and 443 reachable from the internet (router port forwarding).
+import site.caddy
+
+{$DOMAIN} {
+	import site
+}

@@ -1,0 +1,26 @@
+# Testing inside the school network without a domain: HTTPS by IP address with
+# Caddy's local certificate authority (phones must trust it once, see docs).
+{
+	skip_install_trust
+	default_sni {$LOCAL_HTTPS_HOST}
+}
+
+import site.caddy
+
+https://{$LOCAL_HTTPS_HOST} {
+	tls internal
+	import site
+}
+
+# Plain HTTP only hands out the public CA certificate for installation on phones.
+http://{$LOCAL_HTTPS_HOST} {
+	handle /schoollive-ca.crt {
+		root * /data/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		file_server
+	}
+	handle {
+		redir https://{host}{uri} 308
+	}
+}

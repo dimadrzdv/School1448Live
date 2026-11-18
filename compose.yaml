@@ -1,0 +1,48 @@
+# SchoolLive 2.0 on the school server (Linux + Docker).
+#   cp .env.example .env   # fill in, see docs/УСТАНОВКА.md
+#   docker compose up -d --build
+#
+# Both services use the host network: WebRTC media must reach the server
+# directly on MEDIA_PORT (UDP+TCP), without Docker's NAT in between.
+name: schoollive
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: server
+    image: schoollive-server
+    network_mode: host
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HTTP_ADDR: 127.0.0.1:8080
+      TRUST_PROXY: "true"
+      COOKIE_SECURE: "true"
+    volumes:
+      - data:/data
+    stop_grace_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: web
+    image: schoollive-web
+    network_mode: host
+    restart: unless-stopped
+    env_file: .env
+    # Caddyfile = public domain (Let's Encrypt); Caddyfile.local = HTTPS by IP inside the school network.
+    command: ["caddy", "run", "--config", "/etc/caddy/${CADDYFILE:-Caddyfile}", "--adapter", "caddyfile"]
+    volumes:
+      - data:/srv/data:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server
+
+volumes:
+  data:
+  caddy_data:
+  caddy_config:

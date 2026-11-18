@@ -1,0 +1,6 @@
+/target
+/data
+/data-dev
+.env
+.DS_Store
+/.certs

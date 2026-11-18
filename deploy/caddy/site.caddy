@@ -1,0 +1,43 @@
+# Shared site config for both Caddyfiles.
+(site) {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(self), microphone=(self), screen-wake-lock=(self), geolocation=()"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	# API and signaling. flush_interval -1 keeps server-sent events streaming.
+	handle /api/* {
+		# Caddy itself sets X-Forwarded-For to the real client (incoming values are not trusted).
+		reverse_proxy 127.0.0.1:8080 {
+			flush_interval -1
+		}
+	}
+
+	# Archive files straight from disk (range requests, no proxy hop).
+	handle_path /media/* {
+		root * /srv/data/public
+		@playlist path *.m3u8
+		header @playlist Cache-Control "public, max-age=60"
+		@files not path *.m3u8
+		header @files Cache-Control "public, max-age=86400"
+		file_server
+	}
+
+	# Web app: hashed assets cached forever, pages always revalidated.
+	handle {
+		root * /srv/web
+		@assets path /assets/* /fonts/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@pages not path /assets/* /fonts/* /branding/*
+		header @pages Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

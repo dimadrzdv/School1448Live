@@ -1,0 +1,14 @@
+# Test on macOS: Docker Desktop has no real host networking, so ports are published.
+# The web container shares the server's network namespace (Caddy still reaches 127.0.0.1:8080).
+services:
+  server:
+    network_mode: bridge
+    ports:
+      - "8443:443"
+      - "8088:80"
+      - "18189:18189/udp"
+      - "18189:18189/tcp"
+    environment:
+      MEDIA_PORT: "18189"
+  web:
+    network_mode: "service:server"
