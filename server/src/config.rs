@@ -36,7 +36,8 @@ pub struct MediaConfig {
     pub egress_limit_bps: u64,
     /// Seconds a live stream waits for its publisher to come back.
     pub reconnect_grace_secs: u64,
-    /// Maximum concurrent viewer sessions per client IP.
+    /// Maximum concurrent viewer sessions per public client IP; 0 = unlimited.
+    /// Local-network addresses are not limited.
     pub max_viewers_per_ip: usize,
 }
 
@@ -101,7 +102,7 @@ impl Config {
             reconnect_grace_secs: var_or("RECONNECT_GRACE_SECS", "60")
                 .parse()
                 .context("RECONNECT_GRACE_SECS")?,
-            max_viewers_per_ip: var_or("MAX_VIEWERS_PER_IP", "8")
+            max_viewers_per_ip: var_or("MAX_VIEWERS_PER_IP", "20")
                 .parse()
                 .context("MAX_VIEWERS_PER_IP")?,
         };

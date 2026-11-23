@@ -151,6 +151,7 @@ impl Engine {
             udp_tcp_port = cfg.port,
             lan = %cfg.lan_ip,
             public = ?cfg.public_ip,
+            max_viewers_per_ip = cfg.max_viewers_per_ip,
             "медиасервер запущен"
         );
         let now = Instant::now();
@@ -400,7 +401,12 @@ impl Engine {
             .values()
             .filter(|p| matches!(p.role, Role::Viewer(_)) && p.client_ip == client_ip)
             .count();
-        if same_ip >= self.cfg.max_viewers_per_ip && !client_ip.is_loopback() {
+        if over_ip_limit(client_ip, same_ip, self.cfg.max_viewers_per_ip) {
+            tracing::warn!(
+                ip = %client_ip,
+                limit = self.cfg.max_viewers_per_ip,
+                "зритель не подключён: лимит зрителей с одного адреса (MAX_VIEWERS_PER_IP)"
+            );
             return Err(SfuError::TooManyViewers);
         }
         let offer = SdpOffer::from_sdp_string(offer).map_err(|e| SfuError::BadOffer(e.to_string()))?;
@@ -959,5 +965,35 @@ fn write(rtc: &mut Rtc, mid: Mid, data: &MediaData, out_time: u64, errors: &mut 
         if errors.is_power_of_two() {
             tracing::debug!("write: {e}");
         }
+    }
+}
+
+/// Whether one more viewer from `ip` exceeds the per-address limit (`limit == 0` means none).
+/// Local addresses are never limited: behind hairpin NAT or a school Wi-Fi router
+/// every viewer in the building shares one address.
+fn over_ip_limit(ip: IpAddr, same_ip: usize, limit: usize) -> bool {
+    limit > 0 && same_ip >= limit && !is_local_ip(ip)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ip_limit_applies_to_public_addresses_only() {
+        let public: IpAddr = "203.0.113.7".parse().unwrap();
+        assert!(!over_ip_limit(public, 19, 20));
+        assert!(over_ip_limit(public, 20, 20));
+
+        for local in ["192.168.1.1", "10.0.0.1", "172.16.5.5", "127.0.0.1", "fd00::1"] {
+            assert!(!over_ip_limit(local.parse().unwrap(), 500, 20), "{local}");
+        }
+        // Carrier-grade NAT is a shared public address, not the school network.
+        assert!(over_ip_limit("100.64.0.1".parse().unwrap(), 20, 20));
+    }
+
+    #[test]
+    fn zero_ip_limit_means_unlimited() {
+        assert!(!over_ip_limit("203.0.113.7".parse().unwrap(), 1000, 0));
     }
 }

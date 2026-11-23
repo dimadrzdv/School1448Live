@@ -97,6 +97,12 @@ export function LivePlayer({ stream }: { stream: StreamInfo }) {
   else if (state === 'connecting') overlay = { title: 'Подключаемся к эфиру…', spin: true }
   else if (state === 'reconnecting') overlay = { title: 'Восстанавливаем соединение…', spin: true }
   else if (state === 'offline') overlay = { title: 'Эфир скоро начнётся', hint: 'Видео появится автоматически', spin: false }
+  else if (state === 'limited')
+    overlay = {
+      title: 'Из вашей сети смотрят слишком много зрителей',
+      hint: 'Подключим автоматически, когда освободится место. Можно открыть эфир через мобильный интернет',
+      spin: false,
+    }
   else if (state === 'stalled' || (publisherAway && state !== 'playing'))
     overlay = {
       title: publisherAway ? 'Связь с камерой прервалась' : 'Сигнал временно пропал',

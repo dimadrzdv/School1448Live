@@ -1,6 +1,7 @@
 import type { LayerPref } from '../api/types'
 
-export type ViewerState = 'connecting' | 'playing' | 'stalled' | 'reconnecting' | 'offline'
+/** `limited`: the server refused this address (too many viewers behind it); retried slowly. */
+export type ViewerState = 'connecting' | 'playing' | 'stalled' | 'reconnecting' | 'offline' | 'limited'
 
 export interface ViewerStats {
   width: number
@@ -97,7 +98,8 @@ export class WhepViewer {
     window.clearTimeout(this.retryTimer)
     this.closeSession()
     this.pc?.close()
-    this.setState(this.attempt === 0 ? 'connecting' : 'reconnecting')
+    // Keep the "too many viewers" notice up while quietly retrying.
+    if (this.state !== 'limited') this.setState(this.attempt === 0 ? 'connecting' : 'reconnecting')
 
     const pc = new RTCPeerConnection({ bundlePolicy: 'max-bundle' })
     this.pc = pc
@@ -146,6 +148,12 @@ export class WhepViewer {
         this.scheduleRetry(5000)
         return
       }
+      if (res.status === 429) {
+        // A place frees up when someone behind the same address leaves.
+        this.setState('limited')
+        this.scheduleRetry(30_000)
+        return
+      }
       if (!res.ok) throw new Error(`WHEP ${res.status}`)
       this.sessionUrl = res.headers.get('Location')
       const answer = await res.text()
@@ -178,7 +186,7 @@ export class WhepViewer {
   private scheduleRetry(delay?: number) {
     if (this.stopped) return
     this.attempt++
-    if (this.state !== 'offline') this.setState('reconnecting')
+    if (this.state !== 'offline' && this.state !== 'limited') this.setState('reconnecting')
     const backoff = delay ?? Math.min(500 * 2 ** Math.min(this.attempt - 1, 3), 5000)
     window.clearTimeout(this.retryTimer)
     this.retryTimer = window.setTimeout(() => void this.connect(), backoff)
